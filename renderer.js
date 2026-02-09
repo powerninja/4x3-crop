@@ -37,6 +37,7 @@ let stage, layer;
 let imgNode, cropRect;
 let maskTop, maskBottom, maskLeft, maskRight;
 let gridLines = [];
+let centerLines = []; // 画像中心の十字線
 
 let fit = { x: 0, y: 0, w: 0, h: 0, scale: 1 };
 
@@ -90,6 +91,19 @@ function initStage() {
     layer.add(line);
   }
 
+  // 画像中心の十字線
+  centerLines = [];
+  for (let i = 0; i < 2; i++) {
+    const line = new Konva.Line({
+      stroke: "rgba(255,100,100,0.8)",
+      strokeWidth: 1,
+      dash: [5, 5],
+      listening: false,
+    });
+    centerLines.push(line);
+    layer.add(line);
+  }
+
   // クロップ枠（4:3 固定・移動のみ）
   cropRect = new Konva.Rect({
     stroke: "#4da3ff",
@@ -102,6 +116,7 @@ function initStage() {
     clampCropRect();
     updateMask();
     updateGrid();
+    updateCenterLines();
     layer.batchDraw();
   });
 
@@ -260,6 +275,7 @@ async function load(i) {
     clampCropRect();
     updateMask();
     updateGrid();
+    updateCenterLines();
 
     updateCounter();
     setUIEnabled(true);
@@ -346,6 +362,22 @@ function updateGrid() {
   gridLines[1].points([x + (w * 2) / 3, y, x + (w * 2) / 3, y + h]);
   gridLines[2].points([x, y + h / 3, x + w, y + h / 3]);
   gridLines[3].points([x, y + (h * 2) / 3, x + w, y + (h * 2) / 3]);
+}
+
+/* ---------------- クロップ枠中心の十字線 ---------------- */
+function updateCenterLines() {
+  const x = cropRect.x();
+  const y = cropRect.y();
+  const w = cropRect.width();
+  const h = cropRect.height();
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  const size = 20; // 十字のサイズ
+
+  // 縦線
+  centerLines[0].points([cx, cy - size, cx, cy + size]);
+  // 横線
+  centerLines[1].points([cx - size, cy, cx + size, cy]);
 }
 
 /* ---------------- 保存 ---------------- */
