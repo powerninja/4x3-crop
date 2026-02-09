@@ -22,6 +22,7 @@ const prevBtn = document.getElementById("prevBtn");
 const nextBtn = document.getElementById("nextBtn");
 const saveBtn = document.getElementById("saveBtn");
 const resetBtn = document.getElementById("resetBtn");
+const toggleRatioBtn = document.getElementById("toggleRatioBtn");
 const counter = document.getElementById("counter");
 const stageHost = document.getElementById("stageHost");
 const pathLabel = document.getElementById("pathLabel");
@@ -30,6 +31,7 @@ const pathLabel = document.getElementById("pathLabel");
 let files = [];
 let idx = -1;
 let outDir = null;
+let aspectRatio = "4:3"; // "4:3" or "1:1"
 
 let stage, layer;
 let imgNode, cropRect;
@@ -117,6 +119,7 @@ function setUIEnabled(enabled) {
   nextBtn.disabled = !enabled || idx >= files.length - 1;
   saveBtn.disabled = !enabled || !outDir;
   resetBtn.disabled = !enabled;
+  toggleRatioBtn.disabled = !enabled;
   outBtn.disabled = !enabled;
 }
 
@@ -201,6 +204,17 @@ if (!window.__CROP_APP_BOUND__) {
     layer.draw();
   });
 
+  // ---- アスペクト比切り替え ----
+  toggleRatioBtn.addEventListener("click", () => {
+    aspectRatio = aspectRatio === "4:3" ? "1:1" : "4:3";
+    toggleRatioBtn.textContent =
+      aspectRatio === "4:3" ? "1:1に切替" : "4:3に切替";
+    setInitialCropBox();
+    updateMask();
+    updateGrid();
+    layer.draw();
+  });
+
   // ---- 保存 ----
   saveBtn.addEventListener("click", saveCurrent);
 
@@ -254,14 +268,23 @@ async function load(i) {
   img.src = dataURL;
 }
 
-/* ---------------- 初期クロップ（上下ピッタリ4:3） ---------------- */
+/* ---------------- 初期クロップ（上下ピッタリ、アスペクト比に応じて） ---------------- */
 function setInitialCropBox() {
-  let cropH = fit.h;
-  let cropW = (cropH * 4) / 3;
+  let cropW, cropH;
 
-  if (cropW > fit.w) {
-    cropW = fit.w;
-    cropH = (cropW * 3) / 4;
+  if (aspectRatio === "4:3") {
+    cropH = fit.h;
+    cropW = (cropH * 4) / 3;
+
+    if (cropW > fit.w) {
+      cropW = fit.w;
+      cropH = (cropW * 3) / 4;
+    }
+  } else {
+    // 1:1
+    const minDim = Math.min(fit.w, fit.h);
+    cropW = minDim;
+    cropH = minDim;
   }
 
   cropRect.position({
@@ -346,6 +369,7 @@ async function saveCurrent() {
       inputPath: files[idx],
       outDir,
       rect,
+      aspectRatio,
     });
 
     if (res.ok && idx < files.length - 1) {

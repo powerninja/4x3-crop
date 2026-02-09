@@ -65,9 +65,10 @@ ipcMain.handle("get-image-metadata", async (_evt, inputPath) => {
 });
 
 ipcMain.handle("crop-save", async (_evt, payload) => {
-  const { inputPath, outDir, rect } = payload;
+  const { inputPath, outDir, rect, aspectRatio } = payload;
   const name = path.basename(inputPath, path.extname(inputPath));
-  const outPath = path.join(outDir, `${name}_4x3.jpg`);
+  const suffix = aspectRatio === "1:1" ? "1x1" : "4x3";
+  const outPath = path.join(outDir, `${name}_${suffix}.jpg`);
 
   await sharp(inputPath)
     .rotate()
