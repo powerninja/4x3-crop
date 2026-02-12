@@ -27,23 +27,42 @@ ipcMain.handle("read-image-dataurl", async (_, p) => {
   return `data:image/${ext === "jpg" ? "jpeg" : (ext === "png" ? "png" : "webp")};base64,${buf.toString("base64")}`;
 });
 
-ipcMain.handle("fit-save", async (_, { inputPath, outDir, aspectRatio }) => {
+ipcMain.handle("crop-save", async (_, { inputPath, outDir, rect, aspectRatio }) => {
   const name = path.basename(inputPath, path.extname(inputPath));
-  const outPath = path.join(outDir, `${name}_fitted_${aspectRatio.replace(":", "x")}.jpg`);
+  const outPath = path.join(outDir, `${name}_crop_${aspectRatio.replace(":", "x")}.jpg`);
+  
+  await sharp(inputPath)
+    .rotate()
+    .extract({
+      left: Math.max(0, Math.floor(rect.x)),
+      top: Math.max(0, Math.floor(rect.y)),
+      width: Math.max(1, Math.floor(rect.width)),
+      height: Math.max(1, Math.floor(rect.height))
+    })
+    .jpeg({ quality: 95 })
+    .toFile(outPath);
+  
+  return { ok: true };
+});
+
+ipcMain.handle("fit-save", async (_, { inputPath, outDir, aspectRatio, borderPercent }) => {
+  const name = path.basename(inputPath, path.extname(inputPath));
+  const outPath = path.join(outDir, `${name}_fitted_${aspectRatio.replace(":", "x")}_${borderPercent}pct.jpg`);
   
   const img = sharp(inputPath).rotate();
   const meta = await img.metadata();
   const bg = { r: 255, g: 255, b: 255, alpha: 1 };
   
+  const p = parseFloat(borderPercent) / 100;
+  const scale = 1 - (p * 2);
+
   if (aspectRatio === "Original") {
-    // 元の比率：長辺の5%の余白を四方に追加（実質的に画像を縮小して枠を足す）
-    const border = Math.round(Math.max(meta.width, meta.height) * 0.05);
+    const margin = Math.round(Math.max(meta.width, meta.height) * p);
     await img.extend({
-      top: border, bottom: border, left: border, right: border,
+      top: margin, bottom: margin, left: margin, right: margin,
       background: bg
     }).jpeg({ quality: 95 }).toFile(outPath);
   } else {
-    // 4:3 / 1:1：指定比率のキャンバスを作成し、その中の90%のサイズに画像を縮小して配置
     const ratio = aspectRatio === "1:1" ? 1 : 4 / 3;
     let canvasW, canvasH;
     
@@ -55,9 +74,8 @@ ipcMain.handle("fit-save", async (_, { inputPath, outDir, aspectRatio }) => {
       canvasW = Math.round(meta.height * ratio);
     }
 
-    // 画像をキャンバスの90%サイズにリサイズ
-    const contentW = Math.round(canvasW * 0.9);
-    const contentH = Math.round(canvasH * 0.9);
+    const contentW = Math.max(1, Math.round(canvasW * scale));
+    const contentH = Math.max(1, Math.round(canvasH * scale));
 
     await img.resize({
       width: contentW,

@@ -96,9 +96,15 @@
       </div>
 
       <div class="bottom">
-        <button id="saveBtn" disabled>クロップして保存（Enter）</button>
-        <button id="fitBtn" disabled>白枠を追加して保存</button>
-        <button id="resetBtn" disabled>上下ピッタリに戻す</button>
+        <div style="display:flex; align-items:center; gap:10px; margin-right:20px;">
+          <label for="borderSlider" style="font-size:14px;">白枠の太さ:</label>
+          <input type="range" id="borderSlider" min="0" max="30" value="5" step="1">
+          <span id="borderValue" style="font-size:14px; width:30px;">5%</span>
+        </div>
+        <button id="saveBtn" disabled>クロップ保存</button>
+        <button id="fitBtn" disabled>白枠を追加</button>
+        <button id="batchBtn" disabled>全画像を白枠で保存</button>
+        <button id="resetBtn" disabled>リセット</button>
       </div>
 
       <div class="hint">←/→で移動、Enterで保存。枠はドラッグ移動できます。</div>
