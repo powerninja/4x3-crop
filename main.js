@@ -76,12 +76,16 @@ ipcMain.handle("fit-save", async (_, { inputPath, outDir, aspectRatio, borderPer
         }).jpeg({ quality: 95 }).toFile(outPath);
     }
   } else {
-    // Film border: image on near-black background
+    // Film border: photo → dark extend → thin white outer border
     const darkBg = { r: 10, g: 10, b: 10 };
+    const whiteBg = { r: 255, g: 255, b: 255 };
+    const whitePx = Math.max(10, Math.round(Math.max(meta.width, meta.height) * 0.007));
+
+    let darkBuf;
     if (aspectRatio === "Original") {
       const margin = Math.round(Math.max(meta.width, meta.height) * p);
-      await img.extend({ top: margin, bottom: margin, left: margin, right: margin, background: darkBg })
-        .jpeg({ quality: 95 }).toFile(outPath);
+      darkBuf = await img.extend({ top: margin, bottom: margin, left: margin, right: margin, background: darkBg })
+        .png().toBuffer();
     } else {
       const ratio = aspectRatio === "1:1" ? 1 : 4 / 3;
       let canvasW, canvasH;
@@ -89,13 +93,16 @@ ipcMain.handle("fit-save", async (_, { inputPath, outDir, aspectRatio, borderPer
       else { canvasH = meta.height; canvasW = Math.round(meta.height * ratio); }
       const contentW = Math.max(1, Math.round(canvasW * scale));
       const contentH = Math.max(1, Math.round(canvasH * scale));
-      await img.resize({ width: contentW, height: contentH, fit: "contain", background: darkBg })
+      darkBuf = await img.resize({ width: contentW, height: contentH, fit: "contain", background: darkBg })
         .extend({
           top: Math.floor((canvasH - contentH) / 2), bottom: Math.ceil((canvasH - contentH) / 2),
           left: Math.floor((canvasW - contentW) / 2), right: Math.ceil((canvasW - contentW) / 2),
           background: darkBg
-        }).jpeg({ quality: 95 }).toFile(outPath);
+        }).png().toBuffer();
     }
+    await sharp(darkBuf)
+      .extend({ top: whitePx, bottom: whitePx, left: whitePx, right: whitePx, background: whiteBg })
+      .jpeg({ quality: 95 }).toFile(outPath);
   }
   return { ok: true };
 });

@@ -24,17 +24,20 @@ let aspectRatio = "Original"; // デフォルトを「元の比率」に変更
 let borderPercent = 5;
 let borderType = "white"; // "white" or "film"
 
-let stage, layer, imgNode, bgRect;
+let stage, layer, imgNode, bgRect, filmRect;
 let fit = { x: 0, y: 0, w: 0, h: 0, scale: 1 };
 
 function initStage() {
   stage = new Konva.Stage({ container: "stageHost", width: 1100, height: 640 });
   layer = new Konva.Layer();
   stage.add(layer);
-  
+
   bgRect = new Konva.Rect({ fill: "white", shadowBlur: 10, shadowOpacity: 0.3 });
   layer.add(bgRect);
-  
+
+  filmRect = new Konva.Rect({ fill: "#0a0a0a", visible: false });
+  layer.add(filmRect);
+
   imgNode = new Konva.Image();
   layer.add(imgNode);
 }
@@ -127,11 +130,26 @@ function updateUI() {
     }
   }
 
-  bgRect.fill(borderType === "film" ? "#0a0a0a" : "white");
-  bgRect.size({ width: canvasW, height: canvasH }).position({
-    x: (stage.width() - canvasW) / 2,
-    y: (stage.height() - canvasH) / 2
+  const WHITE_PX = 8; // 白枠の固定厚さ（プレビュー用px）
+  const isFilm = borderType === "film";
+
+  // 白枠（外側）- film時は少し大きめに確保
+  const outerW = isFilm ? canvasW + WHITE_PX * 2 : canvasW;
+  const outerH = isFilm ? canvasH + WHITE_PX * 2 : canvasH;
+  bgRect.fill("white");
+  bgRect.size({ width: outerW, height: outerH }).position({
+    x: (stage.width() - outerW) / 2,
+    y: (stage.height() - outerH) / 2
   });
+
+  // 暗枠（film時のみ表示、白枠の内側）
+  filmRect.visible(isFilm);
+  if (isFilm) {
+    filmRect.size({ width: canvasW, height: canvasH }).position({
+      x: (stage.width() - canvasW) / 2,
+      y: (stage.height() - canvasH) / 2
+    });
+  }
 
   // 画像を中央に配置
   imgNode.size({ width: fit.w, height: fit.h }).position({
