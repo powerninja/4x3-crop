@@ -157,9 +157,12 @@ ipcMain.handle("fit-save", async (_, { inputPath, outDir, aspectRatio, borderPer
     const frameImg = await sharp(frameBuf, { raw: { width: canvasW, height: canvasH, channels: 4 } })
       .png().toBuffer();
 
-    // 暗枠 + フィルムエッジ → 外側に白枠を追加
-    await sharp(darkBuf)
+    // Step1: 暗枠にフィルムエッジを合成
+    const withFrame = await sharp(darkBuf)
       .composite([{ input: frameImg, top: 0, left: 0 }])
+      .png().toBuffer();
+    // Step2: 確実に全辺に白枠を追加（チェーンすると適用されない場合があるため分離）
+    await sharp(withFrame)
       .extend({ top: whitePx, bottom: whitePx, left: whitePx, right: whitePx, background: whiteBg })
       .jpeg({ quality: 95 }).toFile(outPath);
   }
