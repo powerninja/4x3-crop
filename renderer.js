@@ -120,17 +120,28 @@ function updateUI() {
   if (borderType === "polaroid") {
     const sideMarg   = Math.min(fit.w, fit.h) * p;
     const bottomMarg = sideMarg * 1.5;
-    const canvasW = fit.w + sideMarg * 2;
-    const canvasH = fit.h + sideMarg + bottomMarg;
+    const darkPx = 5; // プレビュー用の細い黒枠
+    const innerW = fit.w + darkPx * 2;
+    const innerH = fit.h + darkPx * 2;
+    const outerW = innerW + sideMarg * 2;
+    const outerH = innerH + sideMarg + bottomMarg;
+    // 白枠（外）
     bgRect.fill("white");
-    bgRect.size({ width: canvasW, height: canvasH }).position({
-      x: (stage.width() - canvasW) / 2,
-      y: (stage.height() - canvasH) / 2
+    bgRect.size({ width: outerW, height: outerH }).position({
+      x: (stage.width() - outerW) / 2,
+      y: (stage.height() - outerH) / 2
     });
-    filmRect.visible(false);
+    // 黒枠（内）
+    filmRect.visible(true);
+    filmRect.fill("#0a0a0a");
+    filmRect.size({ width: innerW, height: innerH }).position({
+      x: (stage.width() - innerW) / 2,
+      y: (stage.height() - outerH) / 2 + sideMarg
+    });
+    // 写真
     imgNode.size({ width: fit.w, height: fit.h }).position({
       x: (stage.width() - fit.w) / 2,
-      y: (stage.height() - canvasH) / 2 + sideMarg
+      y: (stage.height() - outerH) / 2 + sideMarg + darkPx
     });
     return;
   }

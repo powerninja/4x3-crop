@@ -188,7 +188,13 @@ ipcMain.handle("fit-save", async (_, { inputPath, outDir, aspectRatio, borderPer
 
     const sidePx   = Math.max(10, Math.round(Math.min(baseW, baseH) * p));
     const bottomPx = Math.round(sidePx * 1.5);
-    await sharp(baseBuf)
+    // Step1: 細い黒枠を内側に追加
+    const darkPx = Math.max(4, Math.round(Math.min(baseW, baseH) * 0.004));
+    const withDark = await sharp(baseBuf)
+      .extend({ top: darkPx, left: darkPx, right: darkPx, bottom: darkPx, background: { r: 10, g: 10, b: 10 } })
+      .png().toBuffer();
+    // Step2: 白枠を外側に追加
+    await sharp(withDark)
       .extend({ top: sidePx, left: sidePx, right: sidePx, bottom: bottomPx, background: whiteBg })
       .jpeg({ quality: 95 }).toFile(outPath);
   }
