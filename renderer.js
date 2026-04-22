@@ -12,6 +12,7 @@ const resetBtn = document.getElementById("resetBtn");
 const toggleRatioBtn = document.getElementById("toggleRatioBtn");
 const borderSlider = document.getElementById("borderSlider");
 const borderValue = document.getElementById("borderValue");
+const borderTypeBtn = document.getElementById("borderTypeBtn");
 const counter = document.getElementById("counter");
 const stageHost = document.getElementById("stageHost");
 const pathLabel = document.getElementById("pathLabel");
@@ -21,6 +22,7 @@ let idx = -1;
 let outDir = null;
 let aspectRatio = "Original"; // デフォルトを「元の比率」に変更
 let borderPercent = 5;
+let borderType = "white"; // "white" or "film"
 
 let stage, layer, imgNode, bgRect;
 let fit = { x: 0, y: 0, w: 0, h: 0, scale: 1 };
@@ -30,7 +32,6 @@ function initStage() {
   layer = new Konva.Layer();
   stage.add(layer);
   
-  // 白枠のプレビュー用背景
   bgRect = new Konva.Rect({ fill: "white", shadowBlur: 10, shadowOpacity: 0.3 });
   layer.add(bgRect);
   
@@ -42,6 +43,14 @@ initStage();
 borderSlider.oninput = () => {
   borderPercent = parseInt(borderSlider.value);
   borderValue.textContent = `${borderPercent}%`;
+  updateUI();
+  layer.draw();
+};
+
+borderTypeBtn.onclick = () => {
+  borderType = borderType === "white" ? "film" : "white";
+  borderTypeBtn.textContent = borderType === "white" ? "枠: 白" : "枠: フィルム";
+  borderTypeBtn.style.background = borderType === "white" ? "#555" : "#2a1a0a";
   updateUI();
   layer.draw();
 };
@@ -118,7 +127,7 @@ function updateUI() {
     }
   }
 
-  // プレビューの白い四角（白枠）を更新
+  bgRect.fill(borderType === "film" ? "#0a0a0a" : "white");
   bgRect.size({ width: canvasW, height: canvasH }).position({
     x: (stage.width() - canvasW) / 2,
     y: (stage.height() - canvasH) / 2
@@ -157,7 +166,7 @@ toggleRatioBtn.onclick = async () => {
 
 fitBtn.onclick = async () => {
   fitBtn.disabled = true;
-  await ipcRenderer.invoke("fit-save", { inputPath: files[idx], outDir, aspectRatio, borderPercent });
+  await ipcRenderer.invoke("fit-save", { inputPath: files[idx], outDir, aspectRatio, borderPercent, borderType });
   if (idx < files.length - 1) { idx++; await load(idx); }
   else { fitBtn.disabled = false; updateUI(); }
 };
@@ -171,7 +180,7 @@ batchBtn.onclick = async () => {
     batchBtn.textContent = `保存中 (${i + 1}/${files.length})...`;
     idx = i;
     await load(idx); // 読み込み完了を待機
-    await ipcRenderer.invoke("fit-save", { inputPath: files[i], outDir, aspectRatio, borderPercent });
+    await ipcRenderer.invoke("fit-save", { inputPath: files[i], outDir, aspectRatio, borderPercent, borderType });
   }
   
   batchBtn.disabled = false;
