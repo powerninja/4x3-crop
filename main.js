@@ -186,8 +186,8 @@ ipcMain.handle("fit-save", async (_, { inputPath, outDir, aspectRatio, borderPer
         .png().toBuffer();
     }
 
-    const sidePx   = Math.max(10, Math.round(Math.max(baseW, baseH) * p));
-    const bottomPx = Math.round(sidePx * 2.5);
+    const sidePx   = Math.max(10, Math.round(Math.min(baseW, baseH) * p));
+    const bottomPx = Math.round(sidePx * 1.5);
     await sharp(baseBuf)
       .extend({ top: sidePx, left: sidePx, right: sidePx, bottom: bottomPx, background: whiteBg })
       .jpeg({ quality: 95 }).toFile(outPath);

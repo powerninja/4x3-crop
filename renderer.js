@@ -118,8 +118,8 @@ function updateUI() {
 
   // ポラロイドモード: 上左右=均等、下=2.5倍の白枠
   if (borderType === "polaroid") {
-    const sideMarg   = Math.max(fit.w, fit.h) * p;
-    const bottomMarg = sideMarg * 2.5;
+    const sideMarg   = Math.min(fit.w, fit.h) * p;
+    const bottomMarg = sideMarg * 1.5;
     const canvasW = fit.w + sideMarg * 2;
     const canvasH = fit.h + sideMarg + bottomMarg;
     bgRect.fill("white");
