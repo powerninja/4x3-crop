@@ -79,7 +79,7 @@ function createFilmFrameRaw(canvasW, canvasH, leftOffset, topOffset, contentW, c
 
 ipcMain.handle("fit-save", async (_, { inputPath, outDir, aspectRatio, borderPercent, borderType = "white" }) => {
   const name = path.basename(inputPath, path.extname(inputPath));
-  const suffix = borderType === "film" ? "film" : "white";
+  const suffix = borderType === "film" ? "film" : borderType === "polaroid" ? "polaroid" : "white";
   const outPath = path.join(outDir, `${name}_fitted_${aspectRatio.replace(":", "x")}_${borderPercent}pct_${suffix}.jpg`);
 
   const img = sharp(inputPath).rotate();
@@ -164,6 +164,32 @@ ipcMain.handle("fit-save", async (_, { inputPath, outDir, aspectRatio, borderPer
     // Step2: 確実に全辺に白枠を追加（チェーンすると適用されない場合があるため分離）
     await sharp(withFrame)
       .extend({ top: whitePx, bottom: whitePx, left: whitePx, right: whitePx, background: whiteBg })
+      .jpeg({ quality: 95 }).toFile(outPath);
+
+  } else if (borderType === "polaroid") {
+    // ポラロイド: 上左右=均等白枠、下=2.5倍の白枠
+    const whiteBg = { r: 255, g: 255, b: 255 };
+    const rotBuf  = await sharp(inputPath).rotate().png().toBuffer();
+    const rotMeta = await sharp(rotBuf).metadata();
+    const imgW = rotMeta.width, imgH = rotMeta.height;
+
+    // アスペクト比指定がある場合はまずコンテンツを合わせる
+    let baseBuf, baseW, baseH;
+    if (aspectRatio === "Original") {
+      baseBuf = rotBuf; baseW = imgW; baseH = imgH;
+    } else {
+      const ratio = aspectRatio === "1:1" ? 1 : 4 / 3;
+      if (imgW / imgH > ratio) { baseW = imgW; baseH = Math.round(imgW / ratio); }
+      else { baseH = imgH; baseW = Math.round(imgH * ratio); }
+      baseBuf = await sharp(rotBuf)
+        .resize({ width: baseW, height: baseH, fit: "contain", background: whiteBg })
+        .png().toBuffer();
+    }
+
+    const sidePx   = Math.max(10, Math.round(Math.max(baseW, baseH) * p));
+    const bottomPx = Math.round(sidePx * 2.5);
+    await sharp(baseBuf)
+      .extend({ top: sidePx, left: sidePx, right: sidePx, bottom: bottomPx, background: whiteBg })
       .jpeg({ quality: 95 }).toFile(outPath);
   }
   return { ok: true };
