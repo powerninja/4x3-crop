@@ -45,19 +45,36 @@ ipcMain.handle("crop-save", async (_, { inputPath, outDir, rect, aspectRatio }) 
   return { ok: true };
 });
 
-// フィルムゲートの不規則なエッジを表現する波形SVGパスを生成
-function buildWavyPath(left, top, right, bottom, amp, step) {
-  const pts = [];
-  const w = right - left, h = bottom - top;
-  for (let x = left; x <= right; x += step)
-    pts.push(`${x.toFixed(1)},${(top  + amp * Math.sin((x - left) / w * 5 * Math.PI         )).toFixed(1)}`);
-  for (let y = top + step; y <= bottom; y += step)
-    pts.push(`${(right + amp * Math.sin((y - top)    / h * 7 * Math.PI + 1.0)).toFixed(1)},${y.toFixed(1)}`);
-  for (let x = right; x >= left; x -= step)
-    pts.push(`${x.toFixed(1)},${(bottom + amp * Math.sin((right - x)  / w * 6 * Math.PI + 2.0)).toFixed(1)}`);
-  for (let y = bottom - step; y >= top; y -= step)
-    pts.push(`${(left  + amp * Math.sin((bottom - y) / h * 4 * Math.PI + 0.5)).toFixed(1)},${y.toFixed(1)}`);
-  return 'M ' + pts.join(' L ') + ' Z';
+// フィルムゲートの不規則なエッジをRGBAバッファで直接生成
+function createFilmFrameRaw(canvasW, canvasH, leftOffset, topOffset, contentW, contentH, amp) {
+  // 辺ごとに波形境界を事前計算（sin波を4辺で独立させて有機的に見せる）
+  const topB    = new Float32Array(canvasW);
+  const bottomB = new Float32Array(canvasW);
+  for (let x = 0; x < canvasW; x++) {
+    const t = Math.max(0, Math.min(1, (x - leftOffset) / contentW));
+    topB[x]    = topOffset            + amp * Math.sin(t * 5 * Math.PI);
+    bottomB[x] = topOffset + contentH + amp * Math.sin(t * 6 * Math.PI + 2.0);
+  }
+  const leftB  = new Float32Array(canvasH);
+  const rightB = new Float32Array(canvasH);
+  for (let y = 0; y < canvasH; y++) {
+    const t = Math.max(0, Math.min(1, (y - topOffset) / contentH));
+    leftB[y]  = leftOffset            + amp * Math.sin(t * 4 * Math.PI + 0.5);
+    rightB[y] = leftOffset + contentW + amp * Math.sin(t * 7 * Math.PI + 1.0);
+  }
+
+  const buf = Buffer.alloc(canvasW * canvasH * 4, 0); // 初期値: 透明
+  for (let y = 0; y < canvasH; y++) {
+    const lb = leftB[y], rb = rightB[y];
+    for (let x = 0; x < canvasW; x++) {
+      // 4辺の波形境界すべての内側のみ写真エリア、それ以外は暗枠
+      if (!(x > lb && x < rb && y > topB[x] && y < bottomB[x])) {
+        const i = (y * canvasW + x) * 4;
+        buf[i] = 10; buf[i + 1] = 10; buf[i + 2] = 10; buf[i + 3] = 255;
+      }
+    }
+  }
+  return buf;
 }
 
 ipcMain.handle("fit-save", async (_, { inputPath, outDir, aspectRatio, borderPercent, borderType = "white" }) => {
@@ -91,13 +108,14 @@ ipcMain.handle("fit-save", async (_, { inputPath, outDir, aspectRatio, borderPer
         }).jpeg({ quality: 95 }).toFile(outPath);
     }
   } else {
-    // Film border: photo → dark extend with irregular inner edge → thin white outer border
-    const darkBg = { r: 10, g: 10, b: 10 };
+    // Film border: photo → dark extend with irregular inner edge → visible white outer border
+    const darkBg  = { r: 10, g: 10, b: 10 };
     const whiteBg = { r: 255, g: 255, b: 255 };
-    const whitePx = Math.max(10, Math.round(Math.max(meta.width, meta.height) * 0.007));
+    // 白枠: 長辺の1%（最小20px）でしっかり見える厚さに
+    const whitePx = Math.max(20, Math.round(Math.max(meta.width, meta.height) * 0.01));
 
     // EXIFローテーション後の実寸を取得
-    const rotBuf = await sharp(inputPath).rotate().png().toBuffer();
+    const rotBuf  = await sharp(inputPath).rotate().png().toBuffer();
     const rotMeta = await sharp(rotBuf).metadata();
     const imgW = rotMeta.width, imgH = rotMeta.height;
 
@@ -114,7 +132,7 @@ ipcMain.handle("fit-save", async (_, { inputPath, outDir, aspectRatio, borderPer
       contentW = Math.max(1, Math.round(canvasW * scale));
       contentH = Math.max(1, Math.round(canvasH * scale));
       leftOffset = Math.floor((canvasW - contentW) / 2);
-      topOffset = Math.floor((canvasH - contentH) / 2);
+      topOffset  = Math.floor((canvasH - contentH) / 2);
     }
 
     // 暗背景に画像を配置
@@ -133,19 +151,15 @@ ipcMain.handle("fit-save", async (_, { inputPath, outDir, aspectRatio, borderPer
         }).png().toBuffer();
     }
 
-    // 波形パスで不規則な内側エッジのSVGフレームを生成（フィルムゲート効果）
-    const amp  = Math.max(5, Math.round(Math.min(contentW, contentH) * 0.004));
-    const step = Math.max(3, Math.round(Math.min(contentW, contentH) * 0.004));
-    const innerPath = buildWavyPath(leftOffset, topOffset, leftOffset + contentW, topOffset + contentH, amp, step);
-    const frameSvg = Buffer.from(
-      `<svg xmlns="http://www.w3.org/2000/svg" width="${canvasW}" height="${canvasH}">` +
-      `<path fill-rule="evenodd" fill="rgb(10,10,10)"` +
-      ` d="M 0,0 L ${canvasW},0 L ${canvasW},${canvasH} L 0,${canvasH} Z ${innerPath}"/>` +
-      `</svg>`
-    );
+    // ピクセルバッファで不規則な内側エッジのフィルムゲートフレームを生成
+    const amp      = Math.max(3, Math.round(Math.min(contentW, contentH) * 0.002));
+    const frameBuf = createFilmFrameRaw(canvasW, canvasH, leftOffset, topOffset, contentW, contentH, amp);
+    const frameImg = await sharp(frameBuf, { raw: { width: canvasW, height: canvasH, channels: 4 } })
+      .png().toBuffer();
 
+    // 暗枠 + フィルムエッジ → 外側に白枠を追加
     await sharp(darkBuf)
-      .composite([{ input: frameSvg, top: 0, left: 0 }])
+      .composite([{ input: frameImg, top: 0, left: 0 }])
       .extend({ top: whitePx, bottom: whitePx, left: whitePx, right: whitePx, background: whiteBg })
       .jpeg({ quality: 95 }).toFile(outPath);
   }
