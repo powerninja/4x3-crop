@@ -51,9 +51,13 @@ borderSlider.oninput = () => {
 };
 
 borderTypeBtn.onclick = () => {
-  borderType = borderType === "white" ? "film" : "white";
-  borderTypeBtn.textContent = borderType === "white" ? "枠: 白" : "枠: フィルム";
-  borderTypeBtn.style.background = borderType === "white" ? "#555" : "#2a1a0a";
+  if (borderType === "white") borderType = "film";
+  else if (borderType === "film") borderType = "polaroid";
+  else borderType = "white";
+  const labels = { white: "枠: 白", film: "枠: フィルム", polaroid: "枠: ポラロイド" };
+  const colors = { white: "#555", film: "#2a1a0a", polaroid: "#1a3a1a" };
+  borderTypeBtn.textContent = labels[borderType];
+  borderTypeBtn.style.background = colors[borderType];
   updateUI();
   layer.draw();
 };
@@ -111,6 +115,26 @@ function updateUI() {
   if (!fit.w) return;
 
   const p = borderPercent / 100;
+
+  // ポラロイドモード: 上左右=均等、下=2.5倍の白枠
+  if (borderType === "polaroid") {
+    const sideMarg   = Math.max(fit.w, fit.h) * p;
+    const bottomMarg = sideMarg * 2.5;
+    const canvasW = fit.w + sideMarg * 2;
+    const canvasH = fit.h + sideMarg + bottomMarg;
+    bgRect.fill("white");
+    bgRect.size({ width: canvasW, height: canvasH }).position({
+      x: (stage.width() - canvasW) / 2,
+      y: (stage.height() - canvasH) / 2
+    });
+    filmRect.visible(false);
+    imgNode.size({ width: fit.w, height: fit.h }).position({
+      x: (stage.width() - fit.w) / 2,
+      y: (stage.height() - canvasH) / 2 + sideMarg
+    });
+    return;
+  }
+
   let canvasW, canvasH;
 
   if (aspectRatio === "Original") {
