@@ -107,7 +107,7 @@ ipcMain.handle("fit-save", async (_, { inputPath, outDir, aspectRatio, borderPer
           background: bg
         }).jpeg({ quality: 95 }).toFile(outPath);
     }
-  } else {
+  } else if (borderType === "film") {
     // Film border: photo → dark extend with irregular inner edge → visible white outer border
     const darkBg  = { r: 10, g: 10, b: 10 };
     const whiteBg = { r: 255, g: 255, b: 255 };
